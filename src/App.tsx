@@ -24,7 +24,7 @@ function generateWorld() {
   for (let y = 0; y < VerticalCells; y++) {
     worldCells.push([]);
     for (let x = 0; x < HorizontalCells; x++) {
-      const solid: boolean = y === 0 || y === VerticalCells - 1 || x === 0 || x === HorizontalCells - 1 || (y === 8 && x !== 5);
+      const solid: boolean = y === 0 || y === VerticalCells - 1 || x === 0 || x === HorizontalCells - 1 || (y === 8 && (x !== 5 && x !== 6));
 
       const bounds = {
         left: x * CellSize,
@@ -43,47 +43,37 @@ function generateWorld() {
         worldCells[y].push({
           solid: false,
           bounds,
-         // particles: []
+          // particles: []
           particles: [
             {
-              symbol: 'N2',
-              mass: 1,
-              radius: 0.02,
+              symbol: 'H2',
+              mass: 2,
+              radius: 0.015,
               position: { x: (x + 0.5) * CellSize, y: (y + 0.5) * CellSize },
-              velocity: { x: 200 * (Math.random() - 0.5), y: 500 * (Math.random() - 0.5) },
+              velocity: { x: 950 * (Math.random() - 0.5), y: 1050 * (Math.random() - 0.5) },
               moved: true,
               collided: false,
-              color: '#b9ee8e'
+              color: '#FF0000'
             },
             {
-              symbol: 'N2',
-              mass: 1,
-              radius: 0.02,
+              symbol: 'H2',
+              mass: 2,
+              radius: 0.015,
               position: { x: (x + 0.5) * CellSize, y: (y + 0.5) * CellSize },
-              velocity: { x: 200 * (Math.random() - 0.5), y: 500 * (Math.random() - 0.5) },
+              velocity: { x: 1050 * (Math.random() - 0.5), y: 950 * (Math.random() - 0.5) },
               moved: true,
               collided: false,
-              color: '#b9ee8e'
+              color: '#FF0000'
             },
             {
-              symbol: 'N2',
-              mass: 1,
-              radius: 0.02,
+              symbol: 'O2',
+              mass: 8,
+              radius: 0.025,
               position: { x: (x + 0.5) * CellSize, y: (y + 0.5) * CellSize },
-              velocity: { x: 2000 * (Math.random() - 0.5), y: 500 * (Math.random() - 0.5) },
+              velocity: { x: 100 * (Math.random() - 0.5), y: 100 * (Math.random() - 0.5) },
               moved: true,
               collided: false,
-              color: '#b9ee8e'
-            },
-            {
-              symbol: 'N2',
-              mass: 1,
-              radius: 0.02,
-              position: { x: (x + 0.5) * CellSize, y: (y + 0.5) * CellSize },
-              velocity: { x: 200 * (Math.random() - 0.5), y: 5000 * (Math.random() - 0.5) },
-              moved: true,
-              collided: false,
-              color: '#b9ee8e'
+              color: '#FFFFFF'
             }
           ]
         });
@@ -148,7 +138,7 @@ function render(timeStamp: number) {
   if (context === null) return;
 
   // Clear the frame the ambient intensity
-  fill(context, `#000000`);
+  fill(context, '#000000');
 
   // Reset all particles before moving and collision detection
   for (let y = 0; y < VerticalCells; y++) {
@@ -263,9 +253,32 @@ function render(timeStamp: number) {
             // https://stackoverflow.com/questions/35211114/2d-elastic-ball-collision-physics
             // https://stackoverflow.com/questions/345838/ball-to-ball-collision-detection-and-handling
             if (distance < radiiSum && distance > 0.0001) {
+
               // Minimum translation distance to push balls apart after intersecting
               const mtd: Vector2 = VectorHelper.Multiply(positionDelta, ((radiiSum) - distance) / distance);
               const mtdNormal: Vector2 = VectorHelper.Normalize(mtd);
+
+              // Impact speed
+              const impactVelocity: Vector2 = VectorHelper.Subtract(particle.velocity, particle2.velocity);
+              const impactSpeed: number = VectorHelper.Dot(impactVelocity, mtdNormal);
+
+              // Decide if hydrogen combustion occurs
+              if (Math.abs(impactSpeed) > 990 && (
+                (particle.symbol === 'H2' && particle2.symbol === 'O2') ||
+                (particle.symbol === 'O2' && particle2.symbol === 'H2'))) {
+                  // Convert to water
+                  particle.symbol = 'H2O';
+                  particle.color = '#4ea2ea'
+                  particle.mass = 9;
+                  particle.radius = 0.03;
+                  
+                  particle.velocity = VectorHelper.Add(particle.velocity, VectorHelper.Multiply(mtdNormal, 2000));
+                  particle.collided = true;
+
+                  // Remove other particle
+                  cell.particles.splice(j, 1);
+                  break;
+              }
 
               // Inverse mass quantities
               const iMass1: number = 1.0 / particle.mass;
@@ -274,10 +287,6 @@ function render(timeStamp: number) {
               // Push-pull them apart based off their mass
               particle.position = VectorHelper.Add(particle.position, VectorHelper.Multiply(mtd, iMass1 / (iMass1 + iMass2)));
               particle2.position = VectorHelper.Subtract(particle2.position, VectorHelper.Multiply(mtd, iMass2 / (iMass1 + iMass2)));
-
-              // Impact speed
-              const impactVelocity: Vector2 = VectorHelper.Subtract(particle.velocity, particle2.velocity);
-              const impactSpeed: number = VectorHelper.Dot(impactVelocity, mtdNormal);
 
               // Collision impulse
               const impulse: number = -2.0 * impactSpeed / (iMass1 + iMass2);
@@ -317,12 +326,14 @@ function render(timeStamp: number) {
         },
         color);
 
-      // drawText(context,
-      //   {
-      //     x: (x + 0.25) * CellSize * scaleFactor,
-      //     y: (y + 0.5) * CellSize * scaleFactor
-      //   },
-      //   `${cell.particles.length}`, 'white');
+      if (getBooleanFromQueryString('debug', 'false') && !cell.solid) {
+        drawText(context,
+          {
+            x: (x + 0.25) * CellSize * scaleFactor,
+            y: (y + 0.5) * CellSize * scaleFactor
+          },
+          `${cell.particles.length}`, 'white');
+      }
     }
   }
 
@@ -346,13 +357,15 @@ function render(timeStamp: number) {
 
   fpsManager.update(timeStamp);
 
-  if (getBooleanFromQueryString('debug', 'true')) {
+  if (getBooleanFromQueryString('debug', 'false')) {
     let fps: number = fpsManager.Current;
 
-    //drawText(context, { x: 10, y: 30 }, `FPS: ${fps}`, 'white');
-    drawText(context, { x: 10, y: 20 }, `Time: ${elapsedTime.toFixed(3)} seconds`, 'black');
+    drawText(context, { x: 10, y: CanvasHeight - 20 }, `FPS: ${fps}`, 'white');
   }
 
+  drawText(context, { x: 10, y: 20 }, `Time: ${elapsedTime.toFixed(3)} seconds`, 'black');
+
+  // Use in debug for stepping by much smaller frame intervals
   //setTimeout(() => window.requestAnimationFrame(render), 50);
 
   window.requestAnimationFrame(render);

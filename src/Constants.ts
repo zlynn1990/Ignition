@@ -1,5 +1,5 @@
-export const CanvasWidth: number = 900;
-export const CanvasHeight: number = 900;
+export const CanvasWidth: number = 700;
+export const CanvasHeight: number = 700;
 
 export const CellSize: number = 0.15;
 export const HorizontalCells: number = 20;
