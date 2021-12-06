@@ -31,4 +31,14 @@ export class VectorHelper {
     static Dot(v1: Vector2, v2: Vector2): number {
         return v1.x * v2.x + v1.y * v2.y;
     }
+
+    // Generates a random unit vector
+    static Random(): Vector2 {
+        const randomDirection: Vector2 = {
+            x: Math.random(),
+            y: Math.random()
+          };
+
+          return VectorHelper.Normalize(randomDirection);
+    }
 }

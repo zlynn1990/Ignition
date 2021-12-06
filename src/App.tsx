@@ -2,30 +2,56 @@ import './App.css';
 import React, { useEffect, useRef } from 'react';
 import { CanvasWidth, CanvasHeight, HorizontalCells, VerticalCells, CellSize } from './Constants';
 import { FpsManager } from './FpsManager';
-import { getBooleanFromQueryString } from './Utilities';
+import { getBooleanFromQueryString, getNumberFromQueryString } from './Utilities';
 import { drawCircle, drawRectangle, drawText, fill } from './Rendering/CanvasHelper';
-import { WorldCell } from './WorldCell';
-import { GasParticle } from './GasParticle';
+import { CellType, WorldCell } from './WorldCell';
+import { GasParticle, MoleculeType } from './GasParticle';
 import { Vector2 } from './Primitives/Vector2';
 import { VectorHelper } from './Common/VectorHelper';
 
 // Total time of simulation
 let elapsedTime: number = 0;
-let deltaTime = 0.00001;
+const burnTime = getNumberFromQueryString('burnTime', 0.02);
+
+let deltaTime = getNumberFromQueryString('deltaTime', 0.000005);
+let lastSprayTime = 0;
 
 let context: CanvasRenderingContext2D | null;
 let fpsManager = new FpsManager();
 
 let worldCells: WorldCell[][] = [];
 
+let energyHistory: number[] = [];
+
 generateWorld();
 
 function generateWorld() {
+  const cellMap: number[][] = [
+    [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
+    [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2],
+    [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2],
+    [2, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2],
+    [2, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2],
+    [2, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 2],
+    [2, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 1, 2],
+    [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 1, 2],
+    [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2],
+    [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2],
+    [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2],
+    [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2],
+    [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2],
+    [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 1, 2],
+    [2, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 1, 2],
+    [2, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 2],
+    [2, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2],
+    [2, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2],
+    [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2],
+    [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2]
+  ];
+
   for (let y = 0; y < VerticalCells; y++) {
     worldCells.push([]);
     for (let x = 0; x < HorizontalCells; x++) {
-      const solid: boolean = y === 0 || y === VerticalCells - 1 || x === 0 || x === HorizontalCells - 1 || (y === 8 && (x !== 5 && x !== 6));
-
       const bounds = {
         left: x * CellSize,
         right: (x + 1) * CellSize,
@@ -33,103 +59,36 @@ function generateWorld() {
         bottom: (y + 1) * CellSize
       };
 
-      if (solid) {
-        worldCells[y].push({
-          solid: true,
-          bounds,
-          particles: []
-        });
-      } else if (y > 8) {
-        worldCells[y].push({
-          solid: false,
-          bounds,
-          // particles: []
-          particles: [
+      switch (cellMap[y][x]) {
+        case 0:
+          worldCells[y].push({
+            type: CellType.Vacuum,
+            color: '#000000',
+            bounds,
+            particles: []
+          });
+          break;
+        case 1:
+          worldCells[y].push({
+            type: CellType.Metal,
+            color: '#b0b0b0',
+            bounds,
+            particles: []
+          });
+          break;
+        case 2:
+          worldCells[y].push(
             {
-              symbol: 'H2',
-              mass: 2,
-              radius: 0.015,
-              position: { x: (x + 0.5) * CellSize, y: (y + 0.5) * CellSize },
-              velocity: { x: 950 * (Math.random() - 0.5), y: 1050 * (Math.random() - 0.5) },
-              moved: true,
-              collided: false,
-              color: '#FF0000'
-            },
-            {
-              symbol: 'H2',
-              mass: 2,
-              radius: 0.015,
-              position: { x: (x + 0.5) * CellSize, y: (y + 0.5) * CellSize },
-              velocity: { x: 1050 * (Math.random() - 0.5), y: 950 * (Math.random() - 0.5) },
-              moved: true,
-              collided: false,
-              color: '#FF0000'
-            },
-            {
-              symbol: 'O2',
-              mass: 8,
-              radius: 0.025,
-              position: { x: (x + 0.5) * CellSize, y: (y + 0.5) * CellSize },
-              velocity: { x: 100 * (Math.random() - 0.5), y: 100 * (Math.random() - 0.5) },
-              moved: true,
-              collided: false,
-              color: '#FFFFFF'
+              type: CellType.Boundary,
+              color: '#272727',
+              bounds,
+              particles: []
             }
-          ]
-        });
-      } else {
-        worldCells[y].push({
-          solid: false,
-          bounds,
-          particles: []
-        });
+          );
+          break;
       }
     }
   }
-
-  // worldCells[5][1].particles.push({
-  //   symbol: 'N2',
-  //   mass: 1,
-  //   radius: 0.02,
-  //   position: { x: 5.5 * CellSize, y: 1.2 * CellSize },
-  //   velocity: { x: 0, y: 500 },
-  //   moved: true,
-  //   collided: false,
-  //   color: '#b9ee8e'
-  // });
-
-  // worldCells[5][5].particles.push({
-  //   symbol: 'N2',
-  //   mass: 1,
-  //   radius: 0.02,
-  //   position: { x: 5.5 * CellSize, y: 5 * CellSize },
-  //   velocity: { x: 0, y: -200 },
-  //   moved: true,
-  //   collided: false,
-  //   color: '#FF0000'
-  // });
-
-  // worldCells[5][5].particles.push({
-  //   symbol: 'N2',
-  //   mass: 1,
-  //   radius: 0.02,
-  //   position: { x: 5 * CellSize, y: (5 + 0.5) * CellSize },
-  //   velocity: { x: -2000, y: 0 },
-  //   moved: true,
-  //   collided: false,
-  //   color: '#b9ee8e'
-  // });
-
-  // worldCells[6][5].particles.push({
-  //   symbol: 'N2',
-  //   mass: 1,
-  //   radius: 0.02,
-  //   position: { x: (6 + 0.5) * CellSize, y: (5 + 0.5) * CellSize },
-  //   velocity: { x: 300, y: 0 },
-  //   moved: true,
-  //   collided: false,
-  //   color: '#FF0000'
-  // });
 }
 
 const scaleFactor: number = 200;
@@ -140,13 +99,86 @@ function render(timeStamp: number) {
   // Clear the frame the ambient intensity
   fill(context, '#000000');
 
+  let kineticEnergy = 0;
+
+  if (lastSprayTime > 0.0002 && elapsedTime < burnTime) {
+    lastSprayTime = 0;
+
+    // H2/LOX Fuel injectors
+    // for (let y = 7; y < 15; y++) {
+    //   worldCells[y][18].particles.push(
+    //     {
+    //       type: MoleculeType.DiHydrogen,
+    //       color: '#FF0000',
+    //       radius: 0.015,
+    //       mass: 2.016,
+    //       position: { x: 18 * CellSize, y: y * CellSize },
+    //       velocity: { x: -400 * Math.random(), y: 100 * (Math.random() - 0.5) },
+    //       moved: false,
+    //       collided: false
+    //     },
+    //     {
+    //       type: MoleculeType.DiOxygen,
+    //       color: '#FFFFFF',
+    //       radius: 0.025,
+    //       mass: 16,
+    //       position: { x: 18 * CellSize, y: y * CellSize },
+    //       velocity: { x: -400 * Math.random(), y: 100 * (Math.random() - 0.5) },
+    //       moved: false,
+    //       collided: false
+    //     });
+    // }
+
+    // Fuel injectors
+    for (let y = 7; y < 15; y++) {
+      worldCells[y][18].particles.push(
+        {
+          type: MoleculeType.Methane,
+          color: '#cda77b',
+          radius: 0.02,
+          mass: 16.04,
+          position: { x: 18 * CellSize, y: (y + 0.5) * CellSize },
+          velocity: { x: -500 * Math.random(), y: 100 * (Math.random() - 0.5) },
+          moved: false,
+          collided: false
+        },
+        {
+          type: MoleculeType.DiOxygen,
+          color: '#FFFFFF',
+          radius: 0.03,
+          mass: 63.998,
+          position: { x: 18 * CellSize, y: y * CellSize },
+          velocity: { x: -500 * Math.random(), y: 100 * (Math.random() - 0.5) },
+          moved: false,
+          collided: false
+        }
+      );
+    }
+  }
+
+  // Spark ignition
+  if (elapsedTime > 0.003 && elapsedTime < 0.005) {
+    worldCells[6][14].particles.push(
+      {
+        type: MoleculeType.Helium,
+        color: '#ff9e9e',
+        radius: 0.02,
+        mass: 4.002602,
+        position: { x: 12 * CellSize, y: 6 * CellSize },
+        velocity: { x: 600 * (Math.random() - 0.5), y: 2000 },
+        moved: false,
+        collided: false
+      }
+    );
+  }
+
   // Reset all particles before moving and collision detection
   for (let y = 0; y < VerticalCells; y++) {
     for (let x = 0; x < HorizontalCells; x++) {
       const cell: WorldCell = worldCells[y][x];
 
       for (let particle of cell.particles) {
-        particle.moved = true;
+        particle.moved = false;
         particle.collided = false;
       }
     }
@@ -161,24 +193,30 @@ function render(timeStamp: number) {
         const particle: GasParticle = cell.particles[i];
 
         // Skip particles already updated
-        if (!particle.moved) continue;
+        if (particle.moved) continue;
 
         // Step by the velocity
         particle.position.x += particle.velocity.x * deltaTime;
         particle.position.y += particle.velocity.y * deltaTime;
-        particle.moved = false;
+        particle.moved = true;
 
         // Test if the particle moved to the left out of the cell
         if (particle.position.x < cell.bounds.left) {
           const leftCell: WorldCell = worldCells[y][x - 1];
 
-          // Reflect velocity for a solid cell
-          if (leftCell.solid) {
-            particle.position.x = cell.bounds.left;
-            particle.velocity.x = -particle.velocity.x;
-          } else { // Otherwise move it to the next cell
-            cell.particles.splice(i--, 1);
-            leftCell.particles.push(particle);
+          switch (leftCell.type) {
+            case CellType.Vacuum: // Move it to the next cell
+              cell.particles.splice(i--, 1);
+              leftCell.particles.push(particle);
+              break;
+            case CellType.Metal: // Reflect velocity for a metal wall
+              particle.position.x = cell.bounds.left;
+              particle.velocity.x = -particle.velocity.x;
+              break;
+            case CellType.Boundary: // Remove a particle on the boundary
+
+              cell.particles.splice(i--, 1);
+              break;
           }
 
           continue;
@@ -188,13 +226,22 @@ function render(timeStamp: number) {
         if (particle.position.x > cell.bounds.right) {
           const rightCell: WorldCell = worldCells[y][x + 1];
 
-          // Reflect velocity for a solid cell
-          if (rightCell.solid) {
-            particle.position.x = cell.bounds.right;
-            particle.velocity.x = -particle.velocity.x;
-          } else { // Otherwise move it to the next cell
-            cell.particles.splice(i--, 1);
-            rightCell.particles.push(particle);
+          switch (rightCell.type) {
+            case CellType.Vacuum: // Move it to the next cell
+              cell.particles.splice(i--, 1);
+              rightCell.particles.push(particle);
+              break;
+            case CellType.Metal: // Reflect velocity for a metal wall
+
+              let speed = VectorHelper.Length(particle.velocity);
+              kineticEnergy += 0.5 * (particle.mass / 1000) * speed * speed;
+
+              particle.position.x = cell.bounds.right;
+              particle.velocity.x = -particle.velocity.x;
+              break;
+            case CellType.Boundary: // Remove a particle on the boundary
+              cell.particles.splice(i--, 1);
+              break;
           }
 
           continue;
@@ -204,13 +251,18 @@ function render(timeStamp: number) {
         if (particle.position.y < cell.bounds.top) {
           const topCell: WorldCell = worldCells[y - 1][x];
 
-          // Reflect velocity for a solid cell
-          if (topCell.solid) {
-            particle.position.y = cell.bounds.top;
-            particle.velocity.y = -particle.velocity.y;
-          } else { // Otherwise move it to the next cell
-            cell.particles.splice(i--, 1);
-            topCell.particles.push(particle);
+          switch (topCell.type) {
+            case CellType.Vacuum: // Move it to the next cell
+              cell.particles.splice(i--, 1);
+              topCell.particles.push(particle);
+              break;
+            case CellType.Metal: // Reflect velocity for a metal wall
+              particle.position.y = cell.bounds.top;
+              particle.velocity.y = -particle.velocity.y;
+              break;
+            case CellType.Boundary: // Remove a particle on the boundary
+              cell.particles.splice(i--, 1);
+              break;
           }
 
           continue;
@@ -220,13 +272,18 @@ function render(timeStamp: number) {
         if (particle.position.y > cell.bounds.bottom) {
           const bottomCell: WorldCell = worldCells[y + 1][x];
 
-          // Reflect velocity for a solid cell
-          if (bottomCell.solid) {
-            particle.position.y = cell.bounds.bottom;
-            particle.velocity.y = -particle.velocity.y;
-          } else { // Otherwise move it to the next cell
-            cell.particles.splice(i--, 1);
-            bottomCell.particles.push(particle);
+          switch (bottomCell.type) {
+            case CellType.Vacuum: // Move it to the next cell
+              cell.particles.splice(i--, 1);
+              bottomCell.particles.push(particle);
+              break;
+            case CellType.Metal: // Reflect velocity for a metal wall
+              particle.position.y = cell.bounds.bottom;
+              particle.velocity.y = -particle.velocity.y;
+              break;
+            case CellType.Boundary: // Remove a particle on the boundary
+              cell.particles.splice(i--, 1);
+              break;
           }
 
           continue;
@@ -252,7 +309,7 @@ function render(timeStamp: number) {
             // If the distance between the particles is less than their combined radii they have collided
             // https://stackoverflow.com/questions/35211114/2d-elastic-ball-collision-physics
             // https://stackoverflow.com/questions/345838/ball-to-ball-collision-detection-and-handling
-            if (distance < radiiSum && distance > 0.0001) {
+            if (distance < radiiSum && distance > 0.005) {
 
               // Minimum translation distance to push balls apart after intersecting
               const mtd: Vector2 = VectorHelper.Multiply(positionDelta, ((radiiSum) - distance) / distance);
@@ -262,22 +319,68 @@ function render(timeStamp: number) {
               const impactVelocity: Vector2 = VectorHelper.Subtract(particle.velocity, particle2.velocity);
               const impactSpeed: number = VectorHelper.Dot(impactVelocity, mtdNormal);
 
-              // Decide if hydrogen combustion occurs
-              if (Math.abs(impactSpeed) > 990 && (
-                (particle.symbol === 'H2' && particle2.symbol === 'O2') ||
-                (particle.symbol === 'O2' && particle2.symbol === 'H2'))) {
+              // Decide if combustion occurs
+              if (Math.abs(impactSpeed) > 1300) {
+
+                // Hydrogen combustion
+                // H2 + 0.5 O2 −→ H2O + 286,000 joules
+                if ((particle.type === MoleculeType.DiHydrogen && particle2.type === MoleculeType.DiOxygen) ||
+                  (particle.type === MoleculeType.DiOxygen && particle2.type === MoleculeType.DiHydrogen)) {
                   // Convert to water
-                  particle.symbol = 'H2O';
+                  particle.type = MoleculeType.DiHydrogenMonoxide;
                   particle.color = '#4ea2ea'
-                  particle.mass = 9;
+                  particle.mass = 18.01528;
                   particle.radius = 0.03;
-                  
-                  particle.velocity = VectorHelper.Add(particle.velocity, VectorHelper.Multiply(mtdNormal, 2000));
+
+                  const randomNormal: Vector2 = VectorHelper.Random();
+
+                  particle.velocity = VectorHelper.Add(particle.velocity, VectorHelper.Multiply(randomNormal, 2000));
                   particle.collided = true;
 
                   // Remove other particle
                   cell.particles.splice(j, 1);
                   break;
+                }
+
+                // Methane combustion
+                // CH4 + 2O2 −→ CO2 + 2H2O + 890,000 joules
+                if ((particle.type === MoleculeType.Methane && particle2.type === MoleculeType.DiOxygen) ||
+                  (particle.type === MoleculeType.DiOxygen && particle2.type === MoleculeType.Methane)) {
+                  // Generate one CO2 molecule
+                  particle.type = MoleculeType.CarbonDiOxide;
+                  particle.color = '#93ffaf'
+                  particle.mass = 44.01;
+                  particle.radius = 0.03;
+
+                  const randomNormal: Vector2 = VectorHelper.Random();
+
+                  // Each CO2 molecule takes 56% (200,324 joules) of the kinetic energy 44.01 / 80.038
+                  particle.velocity = VectorHelper.Add(particle.velocity, VectorHelper.Multiply(randomNormal, 2500));
+                  particle.collided = true;
+
+                  // Remove other particle
+                  cell.particles.splice(j, 1);
+
+                  // Generate two water molecules
+                  for (let o = 0; o < 2; o++) {
+                    const randomNormal: Vector2 = VectorHelper.Random();
+
+                    // Each water molecule takes 22% (200,324 joules) of the kinetic energy 18.01528 / 80.038
+                    let waterParticle: GasParticle = {
+                      type: MoleculeType.DiHydrogenMonoxide,
+                      color: '#4ea2ea',
+                      mass: 18.01528,
+                      radius: 0.03,
+                      position: particle.position,
+                      velocity: VectorHelper.Add(particle.velocity, VectorHelper.Multiply(randomNormal, 2500)),
+                      collided: true,
+                      moved: true
+                    };
+
+                    cell.particles.push(waterParticle);
+                  }
+                  break;
+                }
               }
 
               // Inverse mass quantities
@@ -313,8 +416,6 @@ function render(timeStamp: number) {
     for (let x = 0; x < HorizontalCells; x++) {
       const cell: WorldCell = worldCells[y][x];
 
-      let color: string = cell.solid ? '#d6d6d6' : '#676767';
-
       drawRectangle(context,
         {
           x: cell.bounds.left * scaleFactor,
@@ -324,9 +425,9 @@ function render(timeStamp: number) {
           x: cell.bounds.right * scaleFactor,
           y: cell.bounds.bottom * scaleFactor
         },
-        color);
+        cell.color);
 
-      if (getBooleanFromQueryString('debug', 'false') && !cell.solid) {
+      if (getBooleanFromQueryString('debug', 'false') && cell.type === CellType.Vacuum) {
         drawText(context,
           {
             x: (x + 0.25) * CellSize * scaleFactor,
@@ -353,7 +454,16 @@ function render(timeStamp: number) {
     }
   }
 
+  energyHistory.unshift(kineticEnergy);
+
+  if (energyHistory.length > 100) {
+    energyHistory.pop();
+  }
+
+  let avgEnergy = energyHistory.reduce((a, b) => a + b, 0) / 1000;
+
   elapsedTime += deltaTime;
+  lastSprayTime += deltaTime;
 
   fpsManager.update(timeStamp);
 
@@ -363,10 +473,11 @@ function render(timeStamp: number) {
     drawText(context, { x: 10, y: CanvasHeight - 20 }, `FPS: ${fps}`, 'white');
   }
 
-  drawText(context, { x: 10, y: 20 }, `Time: ${elapsedTime.toFixed(3)} seconds`, 'black');
+  drawText(context, { x: 10, y: 20 }, `Time: ${elapsedTime.toFixed(3)} seconds`, 'white');
+  drawText(context, { x: 350, y: 20 }, `Kinetic Energy: ${avgEnergy.toFixed(1)} KJ`, 'white');
 
   // Use in debug for stepping by much smaller frame intervals
-  //setTimeout(() => window.requestAnimationFrame(render), 50);
+  //setTimeout(() => window.requestAnimationFrame(render), 10);
 
   window.requestAnimationFrame(render);
 }
