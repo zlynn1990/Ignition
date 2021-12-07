@@ -1,4 +1,4 @@
-import { MoleculeType } from "./GasParticle";
+import { MoleculeType } from "./Molecules";
 
 export interface Propellant {
     type: MoleculeType;

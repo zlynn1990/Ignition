@@ -2,7 +2,7 @@ import './App.css';
 import React, { useEffect, useRef } from 'react';
 import { CanvasWidth, CanvasHeight, HorizontalCells, VerticalCells, CellSize } from './Constants';
 import { FpsManager } from './FpsManager';
-import { getBooleanFromQueryString, getNumberFromQueryString } from './Utilities';
+import { getBooleanFromQueryString, getNumberFromQueryString, getStringFromQueryString } from './Utilities';
 import { drawCircle, drawRectangle, drawText, fill } from './Rendering/CanvasHelper';
 import { CellType, WorldCell } from './WorldCell';
 import { GasParticle } from './GasParticle';
@@ -20,7 +20,7 @@ const burnTime = getNumberFromQueryString('burnTime', 0.01);
 const deltaTime = getNumberFromQueryString('deltaTime', 0.0000025);
 const molesPerParticle = getNumberFromQueryString('molesPerParticle', 0.0625);
 
-const engine: Engine = new RS25();
+const engine: Engine = getEngine();
 
 const injectors: number = 8;
 let lastSprayTime = 0;
@@ -33,6 +33,18 @@ let worldCells: WorldCell[][] = [];
 
 generateWorld();
 
+function getEngine(): Engine {
+  const engineType: string = getStringFromQueryString('engine', 'raptorSL');
+
+  switch (engineType) {
+    case 'raptorSL':
+      return new RaptorSL();
+    case 'RS25':
+      return new RS25();
+    default:
+      throw new Error(`Unknown engine type ${engineType}`);
+  }
+}
 function getSprayTime(): number {
   let propellentMass: number = 0;
 
@@ -407,7 +419,7 @@ function render(timeStamp: number) {
         }
       }
     }
-  
+
     elapsedTime += deltaTime;
     lastSprayTime += deltaTime;
   }
