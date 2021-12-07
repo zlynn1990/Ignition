@@ -1,5 +1,5 @@
-import { Engine } from "./Engine";
-import { MoleculeType } from "./GasParticle";
+import { Engine, Propellant } from "./Engine";
+import { MoleculeType } from "./Molecules";
 
 export class RaptorSL implements Engine {
     cellMap: number[][] = [
@@ -22,10 +22,14 @@ export class RaptorSL implements Engine {
         [2, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2],
         [2, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2],
         [2, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2],
+        [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2],
         [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2]
-      ];
+    ];
 
-    propellants: MoleculeType[] = [ MoleculeType.Methane, MoleculeType.DiOxygen ];
+    propellants: Propellant[] = [
+        { type: MoleculeType.Methane, fraction: 1 },
+        { type: MoleculeType.DiOxygen, fraction: 2 }
+    ];
 
     massFlow: number = 650;
 }

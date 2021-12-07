@@ -1,5 +1,5 @@
-import { Engine } from "./Engine";
-import { MoleculeType } from "./GasParticle";
+import { Engine, Propellant } from "./Engine";
+import { MoleculeType } from "./Molecules";
 
 export class RS25 implements Engine {
     cellMap: number[][] = [
@@ -22,10 +22,14 @@ export class RS25 implements Engine {
         [2, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2],
         [2, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2],
         [2, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2],
+        [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2],
         [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2]
       ];
 
-    propellants: MoleculeType[] = [ MoleculeType.DiHydrogen, MoleculeType.DiOxygen ];
+      propellants: Propellant[] = [
+        { type: MoleculeType.DiHydrogen, fraction: 1 },
+        { type: MoleculeType.DiOxygen, fraction: 0.5 }
+    ];
 
     massFlow: number = 514.49;
 }

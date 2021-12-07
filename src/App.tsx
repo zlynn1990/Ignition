@@ -5,19 +5,22 @@ import { FpsManager } from './FpsManager';
 import { getBooleanFromQueryString, getNumberFromQueryString } from './Utilities';
 import { drawCircle, drawRectangle, drawText, fill } from './Rendering/CanvasHelper';
 import { CellType, WorldCell } from './WorldCell';
-import { GasParticle, MoleculeType } from './GasParticle';
+import { GasParticle } from './GasParticle';
 import { Vector2 } from './Primitives/Vector2';
 import { VectorHelper } from './Common/VectorHelper';
 import { RaptorSL } from './RaptorSL';
 import { Engine } from './Engine';
+import { MolecularMass, MoleculeType } from './Molecules';
+import { RS25 } from './RS25';
 
 // Total time of simulation
 let elapsedTime: number = 0;
 
-const burnTime = getNumberFromQueryString('burnTime', 0.2);
-const deltaTime = getNumberFromQueryString('deltaTime', 0.000001);
+const burnTime = getNumberFromQueryString('burnTime', 0.01);
+const deltaTime = getNumberFromQueryString('deltaTime', 0.0000025);
+const molesPerParticle = getNumberFromQueryString('molesPerParticle', 0.0625);
 
-const engine: Engine = new RaptorSL();
+const engine: Engine = new RS25();
 
 const injectors: number = 8;
 let lastSprayTime = 0;
@@ -28,8 +31,6 @@ let fpsManager = new FpsManager();
 
 let worldCells: WorldCell[][] = [];
 
-let energyHistory: number[] = [];
-
 generateWorld();
 
 function getSprayTime(): number {
@@ -37,17 +38,7 @@ function getSprayTime(): number {
 
   // Sum up the molar mass of each propellant (convert to kg)
   for (let propellant of engine.propellants) {
-    switch (propellant) {
-      case MoleculeType.DiHydrogen:
-        propellentMass += 2.016 / 1000.0;
-        break;
-      case MoleculeType.Methane:
-        propellentMass += 16.04 / 1000.0;
-        break;
-      case MoleculeType.DiOxygen:
-        propellentMass += 63.998 / 1000.0;
-        break;
-    }
+    propellentMass += MolecularMass(propellant.type, propellant.fraction * molesPerParticle) / 1000.0;
   }
 
   // Multiply for the injector number
@@ -107,9 +98,7 @@ function render(timeStamp: number) {
   // Clear the frame the ambient intensity
   fill(context, '#000000');
 
-  for (let i = 0; i < 10; i++) {
-    let kineticEnergy = 0;
-
+  for (let i = 0; i < 1; i++) {
     if (lastSprayTime > sprayTime && elapsedTime < burnTime) {
       // 8 Fuel injectors
       for (let y = 7; y < 15; y++) {
@@ -117,15 +106,15 @@ function render(timeStamp: number) {
         for (let propellent of engine.propellants) {
           let particle: GasParticle | undefined = undefined;
 
-          switch (propellent) {
+          switch (propellent.type) {
             case MoleculeType.DiHydrogen:
               particle = {
                 type: MoleculeType.DiHydrogen,
                 color: '#FF0000',
-                radius: 0.015,
-                mass: 2.016,
+                radius: 0.013,
+                mass: MolecularMass(propellent.type, propellent.fraction * molesPerParticle),
                 position: { x: 18 * CellSize, y: y * CellSize },
-                velocity: { x: -500 * Math.random(), y: 100 * (Math.random() - 0.5) },
+                velocity: { x: -300 * Math.random(), y: 200 * (Math.random() - 0.5) },
                 moved: false,
                 collided: false
               };
@@ -134,10 +123,10 @@ function render(timeStamp: number) {
               particle = {
                 type: MoleculeType.Methane,
                 color: '#cda77b',
-                radius: 0.02,
-                mass: 16.04,
+                radius: 0.015,
+                mass: MolecularMass(propellent.type, propellent.fraction * molesPerParticle),
                 position: { x: 18 * CellSize, y: (y + 0.5) * CellSize },
-                velocity: { x: -500 * Math.random(), y: 75 * (Math.random() - 0.5) },
+                velocity: { x: -200 * Math.random(), y: 200 * (Math.random() - 0.5) },
                 moved: false,
                 collided: false
               };
@@ -146,10 +135,10 @@ function render(timeStamp: number) {
               particle = {
                 type: MoleculeType.DiOxygen,
                 color: '#FFFFFF',
-                radius: 0.03,
-                mass: 63.998,
+                radius: 0.022,
+                mass: MolecularMass(propellent.type, propellent.fraction * molesPerParticle),
                 position: { x: 18 * CellSize, y: y * CellSize },
-                velocity: { x: -400 * Math.random(), y: 75 * (Math.random() - 0.5) },
+                velocity: { x: -200 * Math.random(), y: 200 * (Math.random() - 0.5) },
                 moved: false,
                 collided: false
               };
@@ -160,9 +149,6 @@ function render(timeStamp: number) {
             throw new Error(`Injector cannot load ${particle}!`);
           }
 
-          let particleSpeed = VectorHelper.Length(particle.velocity);
-          kineticEnergy += 0.5 * particle.mass * particleSpeed * particleSpeed;
-
           worldCells[y][18].particles.push(particle);
         }
       }
@@ -172,15 +158,15 @@ function render(timeStamp: number) {
     }
 
     // Spark ignition
-    if (elapsedTime > 0.003 && elapsedTime < 0.004) {
+    if (elapsedTime > 0.003 && elapsedTime < 0.0035) {
       worldCells[6][14].particles.push(
         {
           type: MoleculeType.Helium,
           color: '#ff9e9e',
-          radius: 0.02,
-          mass: 4.002602,
+          radius: 0.012,
+          mass: 0.50032525,
           position: { x: 12 * CellSize, y: 6 * CellSize },
-          velocity: { x: 600 * (Math.random() - 0.5), y: 2000 },
+          velocity: { x: 600 * (Math.random() - 0.5), y: 4000 },
           moved: false,
           collided: false
         }
@@ -247,10 +233,6 @@ function render(timeStamp: number) {
                 rightCell.particles.push(particle);
                 break;
               case CellType.Metal: // Reflect velocity for a metal wall
-
-                let speed = VectorHelper.Length(particle.velocity);
-                kineticEnergy += 0.5 * particle.mass * speed * speed;
-
                 particle.position.x = cell.bounds.right;
                 particle.velocity.x = -particle.velocity.x;
                 break;
@@ -344,12 +326,12 @@ function render(timeStamp: number) {
                     // Convert to water
                     particle.type = MoleculeType.DiHydrogenMonoxide;
                     particle.color = '#4ea2ea'
-                    particle.mass = 18.01528;
-                    particle.radius = 0.03;
+                    particle.mass = MolecularMass(MoleculeType.DiHydrogenMonoxide, molesPerParticle);
+                    particle.radius = 0.022;
 
                     const randomNormal: Vector2 = VectorHelper.Random();
 
-                    particle.velocity = VectorHelper.Add(particle.velocity, VectorHelper.Multiply(randomNormal, 3000));
+                    particle.velocity = VectorHelper.Add(particle.velocity, VectorHelper.Multiply(randomNormal, 5634.78));
                     particle.collided = true;
 
                     // Remove other particle
@@ -364,8 +346,8 @@ function render(timeStamp: number) {
                     // Generate one CO2 molecule
                     particle.type = MoleculeType.CarbonDiOxide;
                     particle.color = '#93ffaf'
-                    particle.mass = 44.01;
-                    particle.radius = 0.03;
+                    particle.mass = MolecularMass(MoleculeType.CarbonDiOxide, molesPerParticle);
+                    particle.radius = 0.022;
 
                     const randomNormal: Vector2 = VectorHelper.Random();
 
@@ -384,8 +366,8 @@ function render(timeStamp: number) {
                       let waterParticle: GasParticle = {
                         type: MoleculeType.DiHydrogenMonoxide,
                         color: '#4ea2ea',
-                        mass: 18.01528,
-                        radius: 0.03,
+                        mass: MolecularMass(MoleculeType.DiHydrogenMonoxide, molesPerParticle),
+                        radius: 0.022,
                         position: particle.position,
                         velocity: VectorHelper.Add(particle.velocity, VectorHelper.Multiply(randomNormal, 4715.86)),
                         collided: true,
@@ -424,12 +406,6 @@ function render(timeStamp: number) {
           }
         }
       }
-    }
-
-    energyHistory.unshift(kineticEnergy);
-
-    if (energyHistory.length > 100) {
-      energyHistory.pop();
     }
   
     elapsedTime += deltaTime;
@@ -487,10 +463,7 @@ function render(timeStamp: number) {
     drawText(context, { x: 10, y: CanvasHeight - 20 }, `FPS: ${fps}`, 'white');
   }
 
-  let avgEnergy = energyHistory.reduce((a, b) => a + b, 0) / 1000000000;
-
   drawText(context, { x: 10, y: 20 }, `Time: ${elapsedTime.toFixed(3)} seconds`, 'white');
-  drawText(context, { x: 350, y: 20 }, `Kinetic Energy: ${avgEnergy.toFixed(1)} MJ`, 'white');
 
   // Use in debug for stepping by much smaller frame intervals
   //setTimeout(() => window.requestAnimationFrame(render), 10);
