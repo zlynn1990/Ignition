@@ -17,7 +17,8 @@ import { RS25 } from './RS25';
 let elapsedTime: number = 0;
 
 const burnTime = getNumberFromQueryString('burnTime', 0.01);
-const deltaTime = getNumberFromQueryString('deltaTime', 0.0000025);
+const simulationDt = getNumberFromQueryString('simulationDt', 0.0000025);
+const stepsPerFrame = getNumberFromQueryString('stepsPerFrame', 1);
 const molesPerParticle = getNumberFromQueryString('molesPerParticle', 0.0625);
 
 const engine: Engine = getEngine();
@@ -110,7 +111,7 @@ function render(timeStamp: number) {
   // Clear the frame the ambient intensity
   fill(context, '#000000');
 
-  for (let i = 0; i < 1; i++) {
+  for (let i = 0; i < stepsPerFrame; i++) {
     if (lastSprayTime > sprayTime && elapsedTime < burnTime) {
       // 8 Fuel injectors
       for (let y = 7; y < 15; y++) {
@@ -209,8 +210,8 @@ function render(timeStamp: number) {
           if (particle.moved) continue;
 
           // Step by the velocity
-          particle.position.x += particle.velocity.x * deltaTime;
-          particle.position.y += particle.velocity.y * deltaTime;
+          particle.position.x += particle.velocity.x * simulationDt;
+          particle.position.y += particle.velocity.y * simulationDt;
           particle.moved = true;
 
           // Test if the particle moved to the left out of the cell
@@ -420,8 +421,8 @@ function render(timeStamp: number) {
       }
     }
 
-    elapsedTime += deltaTime;
-    lastSprayTime += deltaTime;
+    elapsedTime += simulationDt;
+    lastSprayTime += simulationDt;
   }
 
   // Draw BG cells
